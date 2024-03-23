@@ -40,7 +40,7 @@ Bun.serve({
 
       Bun.write(name, blob);
 
-      await Bun.spawn([
+      Bun.spawn([
         "ffmpeg",
         "-i",
         name,
