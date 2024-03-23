@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+
+    <style>
+      #video {
+        border: 1px solid #999;
+        width: 98%;
+        max-width: 860px;
+      }
+    </style>
+  </head>
+  <body>
+    <p>
+      <button id="start">Start Capture</button>&nbsp;<button id="stop">
+        Stop Capture
+      </button>
+    </p>
+
+    <video id="video" autoplay></video>
+
+    <script>
+      const videoElem = document.getElementById("video");
+      const startElem = document.getElementById("start");
+      const stopElem = document.getElementById("stop");
+
+      let stream = null;
+      let recorder = null;
+      let intervalId = null;
+
+      const displayMediaOptions = {
+        video: {
+          displaySurface: "window",
+          frameRate: { ideal: 15, max: 45 },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      };
+
+      startElem.addEventListener("click", startCapture, false);
+      stopElem.addEventListener("click", stopCapture, false);
+
+      async function handleDataAvailable(data) {
+        try {
+          const response = await fetch("http://localhost:3001/upload", {
+            method: "POST",
+            body: data,
+          });
+          if (!response.ok) {
+            throw new Error("Failed to upload data");
+          }
+          console.log("Data uploaded successfully");
+        } catch (err) {
+          console.error("Error uploading data:", err.message);
+        }
+      }
+
+      async function startCapture() {
+        try {
+          stream = await navigator.mediaDevices.getDisplayMedia(
+            displayMediaOptions
+          );
+          videoElem.srcObject = stream;
+          recorder = new MediaRecorder(stream);
+
+          let chunks = [];
+          recorder.addEventListener("dataavailable", (e) => {
+            if (e.data.size > 0) {
+              chunks.push(e.data);
+            }
+          });
+
+          recorder.addEventListener("stop", () => {
+            const blob = new Blob(chunks, { type: "video/webm" });
+            chunks = [];
+            handleDataAvailable(blob);
+          });
+
+          recorder.start();
+
+          intervalId = setInterval(() => {
+            console.log("Requesting data...");
+            recorder.requestData();
+          }, 10000);
+        } catch (err) {
+          console.error("Error starting capture:", err);
+        }
+      }
+
+      function stopCapture() {
+        if (recorder) {
+          recorder.stop();
+          clearInterval(intervalId);
+          let tracks = videoElem.srcObject.getTracks();
+          tracks.forEach((track) => track.stop());
+          videoElem.srcObject = null;
+        }
+      }
+    </script>
+  </body>
+</html>
